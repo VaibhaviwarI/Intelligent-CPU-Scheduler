@@ -193,6 +193,27 @@
       flex: 1;
     }
     
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    th {
+      background-color: var(--primary-color);
+      color: white;
+    }
+    
+    tr:nth-child(even) {
+      background-color: rgba(248, 249, 250, 0.5);
+    }
+    
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
@@ -258,20 +279,22 @@
   </div>
 
   <script>
-    document.getElementById('algorithm').addEventListener('change', function () {
-      const priorityInputs = document.querySelectorAll('.priority');
-      const timeQuantumInput = document.getElementById('timeQuantum');
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('algorithm').addEventListener('change', function() {
+        const priorityInputs = document.querySelectorAll('.priority');
+        const timeQuantumInput = document.getElementById('timeQuantum');
 
-      if (this.value === 'PriorityNP' || this.value === 'PriorityP') {
-        priorityInputs.forEach(input => input.classList.remove('hidden'));
-        timeQuantumInput.classList.add('hidden');
-      } else if (this.value === 'RR') {
-        priorityInputs.forEach(input => input.classList.add('hidden'));
-        timeQuantumInput.classList.remove('hidden');
-      } else {
-        priorityInputs.forEach(input => input.classList.add('hidden'));
-        timeQuantumInput.classList.add('hidden');
-      }
+        if (this.value === 'PriorityNP' || this.value === 'PriorityP') {
+          priorityInputs.forEach(input => input.classList.remove('hidden'));
+          timeQuantumInput.classList.add('hidden');
+        } else if (this.value === 'RR') {
+          priorityInputs.forEach(input => input.classList.add('hidden'));
+          timeQuantumInput.classList.remove('hidden');
+        } else {
+          priorityInputs.forEach(input => input.classList.add('hidden'));
+          timeQuantumInput.classList.add('hidden');
+        }
+      });
     });
 
     function addTask() {
@@ -288,32 +311,432 @@
       newTask.style.animation = 'fadeIn 0.5s ease-out';
     }
 
-    function simulate() {
+    function getTasks() {
+      const taskInputs = document.querySelectorAll('.task-input');
+      const tasks = [];
+      
+      taskInputs.forEach((taskInput, index) => {
+        const taskId = taskInput.querySelector('.taskId').value;
+        const arrivalTime = parseInt(taskInput.querySelector('.arrivalTime').value) || 0;
+        const burstTime = parseInt(taskInput.querySelector('.burstTime').value) || 1;
+        const priorityInput = taskInput.querySelector('.priority');
+        const priority = priorityInput && !priorityInput.classList.contains('hidden') ? 
+                         parseInt(priorityInput.value) || 0 : 0;
+        
+        if (taskId) {
+          tasks.push({
+            id: taskId,
+            arrivalTime: arrivalTime,
+            burstTime: burstTime,
+            remainingTime: burstTime,
+            priority: priority,
+            finishTime: 0,
+            turnaroundTime: 0,
+            waitingTime: 0,
+            startTime: -1
+          });
+        }
+      });
+      
+      return tasks;
+    }
+
+    function FCFS(tasks) {
+      // Sort by arrival time
+      tasks.sort((a, b) => a.arrivalTime - b.arrivalTime);
+      
+      let currentTime = 0;
+      const gantt = [];
+      
+      tasks.forEach(task => {
+        if (currentTime < task.arrivalTime) {
+          currentTime = task.arrivalTime;
+        }
+        
+        task.startTime = currentTime;
+        gantt.push({
+          id: task.id,
+          start: currentTime,
+          end: currentTime + task.burstTime
+        });
+        
+        task.finishTime = currentTime + task.burstTime;
+        task.turnaroundTime = task.finishTime - task.arrivalTime;
+        task.waitingTime = task.startTime - task.arrivalTime;
+        
+        currentTime = task.finishTime;
+      });
+      
+      return gantt;
+    }
+
+    function SJF(tasks) {
+      tasks.sort((a, b) => a.arrivalTime - b.arrivalTime);
+      
+      let currentTime = 0;
+      const gantt = [];
+      const queue = [];
+      let i = 0;
+      
+      while (i < tasks.length || queue.length > 0) {
+        // Add arrived tasks to queue
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+        
+        if (queue.length === 0) {
+          if (i < tasks.length) {
+            currentTime = tasks[i].arrivalTime;
+            continue;
+          } else {
+            break;
+          }
+        }
+        
+        // Sort queue by burst time (SJF)
+        queue.sort((a, b) => a.burstTime - b.burstTime);
+        
+        const currentTask = queue.shift();
+        currentTask.startTime = currentTime;
+        
+        gantt.push({
+          id: currentTask.id,
+          start: currentTime,
+          end: currentTime + currentTask.burstTime
+        });
+        
+        currentTask.finishTime = currentTime + currentTask.burstTime;
+        currentTask.turnaroundTime = currentTask.finishTime - currentTask.arrivalTime;
+        currentTask.waitingTime = currentTask.startTime - currentTask.arrivalTime;
+        
+        currentTime = currentTask.finishTime;
+      }
+      
+      return gantt;
+    }
+
+    function PriorityNP(tasks) {
+      tasks.sort((a, b) => a.arrivalTime - b.arrivalTime);
+      
+      let currentTime = 0;
+      const gantt = [];
+      const queue = [];
+      let i = 0;
+      
+      while (i < tasks.length || queue.length > 0) {
+        // Add arrived tasks to queue
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+        
+        if (queue.length === 0) {
+          if (i < tasks.length) {
+            currentTime = tasks[i].arrivalTime;
+            continue;
+          } else {
+            break;
+          }
+        }
+        
+        // Sort queue by priority (lower number = higher priority)
+        queue.sort((a, b) => a.priority - b.priority);
+        
+        const currentTask = queue.shift();
+        currentTask.startTime = currentTime;
+        
+        gantt.push({
+          id: currentTask.id,
+          start: currentTime,
+          end: currentTime + currentTask.burstTime
+        });
+        
+        currentTask.finishTime = currentTime + currentTask.burstTime;
+        currentTask.turnaroundTime = currentTask.finishTime - currentTask.arrivalTime;
+        currentTask.waitingTime = currentTask.startTime - currentTask.arrivalTime;
+        
+        currentTime = currentTask.finishTime;
+      }
+      
+      return gantt;
+    }
+
+    function RR(tasks, timeQuantum) {
+      if (!timeQuantum || timeQuantum <= 0) timeQuantum = 2;
+      
+      tasks.sort((a, b) => a.arrivalTime - b.arrivalTime);
+      
+      let currentTime = 0;
+      const gantt = [];
+      const queue = [];
+      let i = 0;
+      
+      // Initialize remaining time
+      tasks.forEach(task => {
+        task.remainingTime = task.burstTime;
+      });
+      
+      while (i < tasks.length || queue.length > 0) {
+        // Add arrived tasks to queue
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+        
+        if (queue.length === 0) {
+          if (i < tasks.length) {
+            currentTime = tasks[i].arrivalTime;
+            continue;
+          } else {
+            break;
+          }
+        }
+        
+        const currentTask = queue.shift();
+        if (currentTask.startTime === -1) {
+          currentTask.startTime = currentTime;
+        }
+        
+        const execTime = Math.min(timeQuantum, currentTask.remainingTime);
+        
+        gantt.push({
+          id: currentTask.id,
+          start: currentTime,
+          end: currentTime + execTime
+        });
+        
+        currentTask.remainingTime -= execTime;
+        currentTime += execTime;
+        
+        // Add arrived tasks during execution
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+        
+        if (currentTask.remainingTime > 0) {
+          queue.push(currentTask);
+        } else {
+          currentTask.finishTime = currentTime;
+          currentTask.turnaroundTime = currentTask.finishTime - currentTask.arrivalTime;
+          currentTask.waitingTime = currentTask.turnaroundTime - currentTask.burstTime;
+        }
+      }
+      
+      return gantt;
+    }
+
+    function SRTF(tasks) {
+      tasks.sort((a, b) => a.arrivalTime - b.arrivalTime);
+      
+      let currentTime = 0;
+      const gantt = [];
+      const queue = [];
+      let i = 0;
+      let prevTask = null;
+      let lastStartTime = 0;
+      
+      // Initialize remaining time
+      tasks.forEach(task => {
+        task.remainingTime = task.burstTime;
+      });
+      
+      while (i < tasks.length || queue.length > 0) {
+        // Add arrived tasks to queue
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+        
+        if (queue.length === 0) {
+          if (i < tasks.length) {
+            currentTime = tasks[i].arrivalTime;
+            continue;
+          } else {
+            break;
+          }
+        }
+        
+        // Sort queue by remaining time (SRTF)
+        queue.sort((a, b) => a.remainingTime - b.remainingTime);
+        
+        const currentTask = queue[0];
+        
+        if (prevTask && prevTask !== currentTask && prevTask.remainingTime > 0) {
+          gantt.push({
+            id: prevTask.id,
+            start: lastStartTime,
+            end: currentTime
+          });
+        }
+        
+        if (prevTask !== currentTask) {
+          lastStartTime = currentTime;
+        }
+        
+        // Execute for 1 unit of time
+        currentTask.remainingTime -= 1;
+        currentTime += 1;
+        
+        if (currentTask.startTime === -1) {
+          currentTask.startTime = lastStartTime;
+        }
+        
+        prevTask = currentTask;
+        
+        // Check if task is completed
+        if (currentTask.remainingTime === 0) {
+          queue.shift();
+          currentTask.finishTime = currentTime;
+          currentTask.turnaroundTime = currentTask.finishTime - currentTask.arrivalTime;
+          currentTask.waitingTime = currentTask.turnaroundTime - currentTask.burstTime;
+          
+          // Add the completed segment to Gantt chart
+          gantt.push({
+            id: currentTask.id,
+            start: lastStartTime,
+            end: currentTime
+          });
+        }
+        
+        // Add arrived tasks during execution
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+      }
+      
+      return gantt;
+    }
+
+    function PriorityP(tasks) {
+      tasks.sort((a, b) => a.arrivalTime - b.arrivalTime);
+      
+      let currentTime = 0;
+      const gantt = [];
+      const queue = [];
+      let i = 0;
+      let prevTask = null;
+      let lastStartTime = 0;
+      
+      // Initialize remaining time
+      tasks.forEach(task => {
+        task.remainingTime = task.burstTime;
+      });
+      
+      while (i < tasks.length || queue.length > 0) {
+        // Add arrived tasks to queue
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+        
+        if (queue.length === 0) {
+          if (i < tasks.length) {
+            currentTime = tasks[i].arrivalTime;
+            continue;
+          } else {
+            break;
+          }
+        }
+        
+        // Sort queue by priority (lower number = higher priority)
+        queue.sort((a, b) => a.priority - b.priority);
+        
+        const currentTask = queue[0];
+        
+        if (prevTask && prevTask !== currentTask && prevTask.remainingTime > 0) {
+          gantt.push({
+            id: prevTask.id,
+            start: lastStartTime,
+            end: currentTime
+          });
+        }
+        
+        if (prevTask !== currentTask) {
+          lastStartTime = currentTime;
+        }
+        
+        // Execute for 1 unit of time
+        currentTask.remainingTime -= 1;
+        currentTime += 1;
+        
+        if (currentTask.startTime === -1) {
+          currentTask.startTime = lastStartTime;
+        }
+        
+        prevTask = currentTask;
+        
+        // Check if task is completed
+        if (currentTask.remainingTime === 0) {
+          queue.shift();
+          currentTask.finishTime = currentTime;
+          currentTask.turnaroundTime = currentTask.finishTime - currentTask.arrivalTime;
+          currentTask.waitingTime = currentTask.turnaroundTime - currentTask.burstTime;
+          
+          // Add the completed segment to Gantt chart
+          gantt.push({
+            id: currentTask.id,
+            start: lastStartTime,
+            end: currentTime
+          });
+        }
+        
+        // Add arrived tasks during execution
+        while (i < tasks.length && tasks[i].arrivalTime <= currentTime) {
+          queue.push(tasks[i]);
+          i++;
+        }
+      }
+      
+      return gantt;
+    }
+
+    function calculateMetrics(tasks) {
+      if (tasks.length === 0) return { avgWaitingTime: 0, avgTurnaroundTime: 0, throughput: 0 };
+      
+      let totalWaitingTime = 0;
+      let totalTurnaroundTime = 0;
+      let maxFinishTime = 0;
+      
+      tasks.forEach(task => {
+        totalWaitingTime += task.waitingTime;
+        totalTurnaroundTime += task.turnaroundTime;
+        if (task.finishTime > maxFinishTime) {
+          maxFinishTime = task.finishTime;
+        }
+      });
+      
+      return {
+        avgWaitingTime: (totalWaitingTime / tasks.length).toFixed(2),
+        avgTurnaroundTime: (totalTurnaroundTime / tasks.length).toFixed(2),
+        throughput: maxFinishTime > 0 ? (tasks.length / maxFinishTime).toFixed(2) : '0.00'
+      };
+    }
+
+    function renderGanttChart(gantt) {
       const ganttChart = document.getElementById('ganttChart');
       ganttChart.innerHTML = `<h3 style="color: var(--secondary-color); margin-bottom: 20px;">Gantt Chart</h3>`;
       
-      // Sample Gantt chart visualization
-      const processes = [
-        { id: 1, duration: 2, color: '#4361ee' },
-        { id: 2, duration: 3, color: '#3a0ca3' },
-        { id: 3, duration: 1, color: '#f72585' },
-        { id: 4, duration: 2, color: '#4cc9f0' },
-        { id: 1, duration: 1, color: '#4361ee' }
-      ];
+      if (gantt.length === 0) return;
       
-      let currentTime = 0;
-      processes.forEach((process, index) => {
+      const colors = ['#4361ee', '#3a0ca3', '#f72585', '#4cc9f0', '#7209b7', '#4895ef', '#3f37c9'];
+      
+      gantt.forEach((item, index) => {
+        const duration = item.end - item.start;
+        if (duration <= 0) return;
+        
         const bar = document.createElement('div');
         bar.className = 'gantt-bar';
-        bar.textContent = `P${process.id}`;
-        bar.style.backgroundColor = process.color;
-        bar.style.width = `${process.duration * 40}px`;
-        bar.setAttribute('data-time', currentTime);
+        bar.textContent = `P${item.id}`;
+        bar.style.backgroundColor = colors[item.id % colors.length];
+        bar.style.width = `${duration * 40}px`;
+        bar.setAttribute('data-time', item.start);
         ganttChart.appendChild(bar);
-        currentTime += process.duration;
         
         // Add animation
-        bar.style.animation = `fadeIn 0.5s ease-out ${index * 0.2}s forwards`;
+        bar.style.animation = `fadeIn 0.5s ease-out ${index * 0.1}s forwards`;
         bar.style.opacity = '0';
       });
       
@@ -323,30 +746,119 @@
       finalTime.textContent = `End`;
       finalTime.style.backgroundColor = '#7209b7';
       finalTime.style.width = '60px';
-      finalTime.setAttribute('data-time', currentTime);
+      finalTime.setAttribute('data-time', gantt[gantt.length-1].end);
       ganttChart.appendChild(finalTime);
-      finalTime.style.animation = `fadeIn 0.5s ease-out ${processes.length * 0.2}s forwards`;
+      finalTime.style.animation = `fadeIn 0.5s ease-out ${gantt.length * 0.1}s forwards`;
       finalTime.style.opacity = '0';
-      
-      // Show output metrics
+    }
+
+    function renderResults(tasks, metrics) {
       const output = document.getElementById('output');
-      output.innerHTML = `
+      
+      if (tasks.length === 0) {
+        output.innerHTML = '<p>No tasks to simulate. Please add tasks first.</p>';
+        return;
+      }
+      
+      // Create table for individual process metrics
+      let tableHTML = `
         <h3>Performance Metrics</h3>
-        <p><strong>Average Waiting Time:</strong> 2.75 units</p>
-        <p><strong>Average Turnaround Time:</strong> 5.25 units</p>
-        <p><strong>Throughput:</strong> 0.8 processes/unit time</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Process</th>
+              <th>Arrival Time</th>
+              <th>Burst Time</th>
+              <th>Finish Time</th>
+              <th>Turnaround Time</th>
+              <th>Waiting Time</th>
+            </tr>
+          </thead>
+          <tbody>
       `;
+      
+      tasks.forEach(task => {
+        tableHTML += `
+          <tr>
+            <td>P${task.id}</td>
+            <td>${task.arrivalTime}</td>
+            <td>${task.burstTime}</td>
+            <td>${task.finishTime}</td>
+            <td>${task.turnaroundTime}</td>
+            <td>${task.waitingTime}</td>
+          </tr>
+        `;
+      });
+      
+      tableHTML += `
+          </tbody>
+        </table>
+        <div style="margin-top: 20px;">
+          <p><strong>Average Waiting Time:</strong> ${metrics.avgWaitingTime} units</p>
+          <p><strong>Average Turnaround Time:</strong> ${metrics.avgTurnaroundTime} units</p>
+          <p><strong>Throughput:</strong> ${metrics.throughput} processes/unit time</p>
+        </div>
+      `;
+      
+      output.innerHTML = tableHTML;
+    }
+
+    function simulate() {
+      const tasks = getTasks();
+      if (tasks.length === 0) {
+        alert('Please add at least one task');
+        return;
+      }
+      
+      const algorithm = document.getElementById('algorithm').value;
+      const timeQuantum = parseInt(document.getElementById('timeQuantum').value) || 2;
+      
+      let gantt = [];
+      
+      switch (algorithm) {
+        case 'FCFS':
+          gantt = FCFS(tasks);
+          break;
+        case 'SJF':
+          gantt = SJF(tasks);
+          break;
+        case 'PriorityNP':
+          gantt = PriorityNP(tasks);
+          break;
+        case 'PriorityP':
+          gantt = PriorityP(tasks);
+          break;
+        case 'RR':
+          gantt = RR(tasks, timeQuantum);
+          break;
+        case 'SRTF':
+          gantt = SRTF(tasks);
+          break;
+        default:
+          gantt = FCFS(tasks);
+      }
+      
+      const metrics = calculateMetrics(tasks);
+      renderGanttChart(gantt);
+      renderResults(tasks, metrics);
       
       // Add chart visualization
       const chart = document.getElementById('chart');
+      const maxWaitingTime = Math.max(...tasks.map(t => t.waitingTime), 1);
+      
       chart.innerHTML = `
-        <h3>Comparison Chart</h3>
-        <div style="display: flex; justify-content: center; margin-top: 20px;">
-          <div style="width: 300px; height: 200px; background: linear-gradient(to top, #4361ee, #4cc9f0); border-radius: 8px; display: flex; align-items: flex-end; justify-content: center;">
-            <div style="width: 80%; text-align: center; padding: 10px; color: white; font-weight: bold;">
-              Waiting Time: 2.75
+        <h3>Waiting Time Comparison</h3>
+        <div style="display: flex; justify-content: center; margin-top: 20px; height: 200px; align-items: flex-end;">
+          ${tasks.map(task => `
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; margin: 0 5px;">
+              <div style="width: 80%; background: linear-gradient(to top, #4361ee, #4cc9f0); border-radius: 4px 4px 0 0; 
+                height: ${(task.waitingTime / maxWaitingTime) * 100}%; 
+                display: flex; justify-content: center; align-items: flex-end;">
+                <span style="padding: 5px; color: white; font-weight: bold;">${task.waitingTime}</span>
+              </div>
+              <div style="margin-top: 5px;">P${task.id}</div>
             </div>
-          </div>
+          `).join('')}
         </div>
       `;
     }
